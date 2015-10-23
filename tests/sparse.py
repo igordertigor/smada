@@ -21,8 +21,8 @@ def test_sparse_solution():
     model = LinARD(100)
     model.train(Phi, y)
 
-    assert np.sum(abs(model.w) > 0) > .4
-    assert np.sum(abs(model.w) > 0) > .6
+    assert np.sum(abs(model.coef_) > 0) > .4
+    assert np.sum(abs(model.coef_) > 0) > .6
 
 
 def test_recover_sparseness():
@@ -33,7 +33,7 @@ def test_recover_sparseness():
     # allow for up to 3 random mistake
     print "This test is based on randomness. It may occasionally fail," \
         " but you should get suspicious if it fails twice in a row."
-    assert np.sum((abs(model.w) < 1e-7) == (abs(w_gen) > 1e-7)) <= 3
+    assert np.sum((abs(model.coef_) < 1e-7) == (abs(w_gen) > 1e-7)) <= 3
 
 
 def test_more_data_better():
