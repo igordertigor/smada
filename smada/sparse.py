@@ -6,8 +6,6 @@ import logging
 LOGGER = logging.getLogger('smada.sparse')
 logging.basicConfig(level=logging.INFO)
 
-# TODO: Change interface to be compatible with sklearn
-
 
 class LinARD(object):
     """automatic relevance determination in linear model
@@ -18,7 +16,7 @@ class LinARD(object):
     """
     # runtime: oct 23, 2015: 3.3866109848
 
-    def __init__(self, t, Phi):
+    def __init__(self, niter=100):
         """
         Parameters:
             t, 1d-array
@@ -26,17 +24,15 @@ class LinARD(object):
             Phi, 2d-array
                 matrix of feature values
         """
-        self.t = np.matrix(t).T
-        self.Phi = np.matrix(Phi)
+        self.niter = niter
         self.beta = .0001    # shouldn't this be a parameter
-        self.alpha = np.matrix(np.random.randn(self.Phi.shape[1])**2).T
+        self.alpha = None
+        self.w = None
         # self.included = np.ones(self.alpha.shape[0],'bool')
         self.delta = 1e10
         self.al_thres = 20
-        self.w = np.zeros(self.Phi.shape[1])
-        self.initialize()
 
-    def estimate_normal(self, al, Phi):
+    def estimate_normal(self, al, X, y):
         """Estimate normal distribution parameters for posterior of weights
 
         Parameters:
@@ -49,9 +45,9 @@ class LinARD(object):
             m, Sg, Lm
             mean vector, covariance matrix, precision matrix
         """
-        Lm = np.diag(al.A.ravel()) + self.beta*Phi.T*Phi
+        Lm = np.diag(np.array(al).ravel()) + self.beta*X.T*X
         Sg = Lm.I
-        m = self.beta * Sg*Phi.T*self.t
+        m = self.beta * Sg*X.T*y
 
         return m, Sg, Lm
 
@@ -68,22 +64,22 @@ class LinARD(object):
             gm
             vector of responsibilities
         """
-        gm = 1.-al.A.ravel()*np.diag(Sg.A).ravel()
+        gm = 1.-np.array(al).ravel()*np.diag(Sg.A).ravel()
         return gm
 
-    def update(self):
+    def update(self, X, y):
         """Update all parameters"""
         al = self.alpha[self.included]
         al_old = al.copy()
-        Phi = self.Phi[:, self.included]
-        m, Sg, Lm = self.estimate_normal(al, Phi)
+        X_ = X[:, self.included]
+        m, Sg, Lm = self.estimate_normal(al, X_, y)
         gm = self.get_gm(al, Sg)
         al_new = gm/m.A.ravel()**2
-        res = np.sum((self.t-Phi*m).A**2)
-        bt_new = self.Phi.shape[0]-np.sum(gm)
+        res = np.sum((y-X_*m).A**2)
+        bt_new = X.shape[0]-np.sum(gm)
         bt_new /= res
         k = 0
-        for i in xrange(self.Phi.shape[1]):
+        for i in xrange(X.shape[1]):
             if self.alpha[i] < self.al_thres:
                 self.alpha[i] = al_new[k]
                 self.included[i] = True
@@ -100,29 +96,35 @@ class LinARD(object):
             self.beta = bt_new
             return 0
 
-    def initialize(self, *args, **kwargs):
+    def initialize(self, X, y):
         """Initialize the algorithm"""
-        m, Sg, Lm = self.estimate_normal(self.alpha, self.Phi)
+        m, Sg, Lm = self.estimate_normal(self.alpha, X, y)
         self.included = np.array(abs(m) > 1e-7).ravel()
         self.alpha[np.logical_not(self.included)] = self.al_thres
 
-    def train(self, niter):
+    def train(self, X, y):
         """Train the model using niter iterations"""
-        for i in xrange(niter):
-            if self.update():
+        # self.alpha = np.matrix(np.random.randn(X.shape[1])**2).T
+        X = np.matrix(X)
+        y = np.matrix(y).T
+        self.alpha = .1*np.ones(X.shape[1])
+        self.initialize(X, y)
+        self.w = np.zeros(X.shape[1])
+        for i in xrange(self.niter):
+            if self.update(X, y):
                 break
             if (i % 50) == 0:
                 al = self.alpha[self.included]
                 # al_old = al.copy()
-                Phi = self.Phi[:, self.included]
-                self.m, self.Sg, self.Lm = self.estimate_normal(al, Phi)
-                f = Phi*self.m
+                X_ = X[:, self.included]
+                self.m, self.Sg, self.Lm = self.estimate_normal(al, X_, y)
+                f = X_*self.m
         else:
             LOGGER.warn("No convergence for smada.sparse.LinARD")
         al = self.alpha[self.included]
         # al_old = al.copy()
-        Phi = self.Phi[:, self.included]
-        self.m, self.Sg, self.Lm = self.estimate_normal(al, Phi)
+        X_ = X[:, self.included]
+        self.m, self.Sg, self.Lm = self.estimate_normal(al, X_, y)
 
     def predict(self, Phi):
         phi = Phi[:, self.included]

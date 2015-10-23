@@ -18,8 +18,8 @@ def generate_fake_data(nobs, nfeatures, sparseness, noisesd=1., intercept=True):
 
 def test_sparse_solution():
     Phi, y, w_gen = generate_fake_data(100, 20, .5)
-    model = LinARD(y, Phi)
-    model.train(100)
+    model = LinARD(100)
+    model.train(Phi, y)
 
     assert np.sum(abs(model.w) > 0) > .4
     assert np.sum(abs(model.w) > 0) > .6
@@ -27,8 +27,8 @@ def test_sparse_solution():
 
 def test_recover_sparseness():
     Phi, y, w_gen = generate_fake_data(10000, 20, .5)
-    model = LinARD(y, Phi)
-    model.train(200)
+    model = LinARD(200)
+    model.train(Phi, y)
 
     # allow for up to 3 random mistake
     print "This test is based on randomness. It may occasionally fail," \
@@ -38,10 +38,10 @@ def test_recover_sparseness():
 
 def test_more_data_better():
     Phi, y, w_gen = generate_fake_data(20000, 20, .5)
-    model_small_data = LinARD(y[:1000], Phi[:1000])
-    model_big_data = LinARD(y[:15000], Phi[:15000])
-    model_small_data.train(100)
-    model_big_data.train(100)
+    model_small_data = LinARD(100)
+    model_big_data = LinARD(100)
+    model_small_data.train(Phi[:1000], y[:1000])
+    model_big_data.train(Phi[:15000], y[:15000])
 
     y_small = model_small_data.predict(Phi[15000:])
     y_big = model_big_data.predict(Phi[15000:])
