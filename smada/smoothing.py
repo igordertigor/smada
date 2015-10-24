@@ -2,12 +2,15 @@
 """
 Smoothing
 
-This module contains frequentist smoothing methods
+This module contains methods for one dimensional smoothing
 """
 
-# current pylint rating: 7.21/10
+# current pylint score: 8.41/10 (main problem is L-matrix in Kernel Smoother
 
 import numpy as np
+from scipy import optimize
+
+from smada import kernels
 
 
 class KernelSmoother(object):
@@ -146,3 +149,108 @@ class KernelSmoother(object):
             L /= L.sum(1).reshape((-1, 1))
             residuals[i] = np.dot(L, self.y[idx])
         return residuals
+
+
+class GaussianProcessRegression(object):
+    """Gaussian process regression for smoothing one dimensional data"""
+
+    def __init__(self, kernel=None, noise_precision=1., optimize_bw=False):
+        """initialize"""
+        self.noise_precision = noise_precision
+        self.optimize_bandwidth = optimize_bw
+        self.X = None
+        self.y = None
+        if isinstance(kernel, kernels.Kernel):
+            self.kernel = kernel
+        else:
+            self.kernel = kernels.GaussKernel(1.)
+        self.covar_kernel = None
+        self.covar_kernel_inv = None
+
+    def _get_kernel_matrix(self):
+        """Calculate the covariance matrix K(Xi, Xj)"""
+        nobservations = self.X.shape[0]
+        kernel_matrix = np.zeros((nobservations, nobservations), 'd')
+        for i in xrange(nobservations):
+            for j in xrange(i, nobservations):
+                kernel_matrix[i, j] = self.kernel(self.X[i, :], self.X[j, :])
+                kernel_matrix[j, i] = kernel_matrix[i, j]
+            kernel_matrix[i, i] += 1./self.noise_precision**2
+        return np.matrix(kernel_matrix)
+
+    def _get_kernel_vector(self, new_x):
+        """Calculate K(x, Xi)
+
+        Parameters:
+            x, array
+                new locations to predict at
+        """
+        nobservations = self.X.shape[0]
+        k = np.zeros((nobservations,))
+        for i in xrange(nobservations):
+            k[i] = self.kernel(new_x, self.X[i, :])
+        return np.matrix(k).T
+
+    def predict(self, X):
+        """Predict at new locations X
+
+        Parameters:
+            X, array
+                new locations to predict at
+
+        Returns:
+            (mean, standard deviation) as a function of X
+        """
+        nobservations = X.shape[0]
+        mean = np.zeros(nobservations, 'd')
+        std_dev = np.zeros(nobservations, 'd')
+        for i in xrange(nobservations):
+            kernel_vector = self._get_kernel_vector(X[i, :])
+            total_var = self.kernel(X[i, :], X[i, :]) + 1./self.noise_precision
+            kernel_vec_times_inv_covar = kernel_vector.T * self.covar_kernel_inv
+            mean[i] = kernel_vec_times_inv_covar * self.y
+            std_dev[i] = total_var - kernel_vec_times_inv_covar * kernel_vector
+        return mean, std_dev
+
+    def _neglikelihood(self, theta, nobservations):
+        """Negative log-likelihood with respect to hyperparameters
+
+        Parameters:
+            theta, array
+                parameters of the kernel + one for the data precision
+
+        Returns:
+            - log likelihood
+        """
+        theta = np.ravel(np.array(theta))
+        self.noise_precision = theta[-1]
+        self.kernel.theta = abs(theta[:-1])
+        kernel_matrix = self._get_kernel_matrix()
+        loglikeli = - np.log(np.linalg.det(kernel_matrix))
+        if np.isnan(loglikeli):
+            raise ValueError('Invalid likelihood: NaN')
+        loglikeli -= self.y.T*kernel_matrix.I*self.y
+        loglikeli -= nobservations*np.log(2*np.pi)
+        loglikeli *= 0.5
+        return -loglikeli
+
+    def train(self, X, y):
+        """Train model in predictor values X and targets y"""
+        self.X = np.matrix(X)
+        self.y = np.matrix(y)
+        self.y.shape = (-1, 1)
+        self.covar_kernel = self._get_kernel_matrix()
+        self.covar_kernel_inv = self.covar_kernel.I
+
+        if self.optimize_bandwidth:
+            nobservations = self.X.shape[0]
+
+            theta0 = np.zeros(self.kernel.nprm+1, 'd')
+            theta0[:-1] = self.kernel.theta
+            theta0[-1] = 1.
+            # CG doesn't work here -- takes forever
+            theta = optimize.fmin(self._neglikelihood, theta0,
+                                  args=(nobservations,), disp=0)
+            self.kernel.theta, self.noise_precision = theta[:-1], theta[-1]
+
+        return self

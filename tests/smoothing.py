@@ -1,6 +1,6 @@
 import numpy as np
 
-from smada.smoothing import KernelSmoother
+from smada.smoothing import KernelSmoother, GaussianProcessRegression
 
 
 def generate_fake_data(xmin, xmax, nobs):
@@ -52,7 +52,7 @@ def test_se():
     assert np.sum(error_indicator) < 50
 
 
-def test_smaller_bandwith_with_more_data():
+def test_ks_smaller_bandwith_with_more_data():
     np.random.seed(1)
     n = 100
 
@@ -64,6 +64,35 @@ def test_smaller_bandwith_with_more_data():
     print "This test is based on randomness. It may occasionally fail," \
         " but you should get suspicious if it fails twice in a row."
     assert K2.h_opt <= K1.h_opt
+
+
+def test_gp_smaller_bandwith_with_more_data():
+    n = 20
+    x, y, generating_rate = generate_fake_data(0, 20, n)
+    x.shape = (-1, 1)
+
+    GP1 = GaussianProcessRegression(optimize_bw=True).train(x[:.2*n], y[:.2*n])
+    GP2 = GaussianProcessRegression(optimize_bw=True).train(x, y)
+
+    assert GP1.kernel.theta <= GP2.kernel.theta
+
+
+def test_gp_consistency():
+    n = 100
+    x, y, generating_rate = generate_fake_data(0, 20, n)
+    x.shape = (-1, 1)
+
+    GP1 = GaussianProcessRegression().train(x[:.2*n], y[:.2*n])
+    GP2 = GaussianProcessRegression().train(x[:.5*n], y[:.5*n])
+
+    predict1, se1 = GP1.predict(x[.5*n:])
+    predict2, se2 = GP2.predict(x[.5*n:])
+
+    residual1 = predict1 - y[.5*n:]
+    residual2 = predict2 - y[.5*n:]
+
+    assert np.sum(residual1**2) >= np.sum(residual2**2)
+
 
 if __name__ == "__main__":
     test_se()
