@@ -13,14 +13,14 @@ def generate_fake_data(xmin, xmax, nobs):
 
 
 def test_se():
-    # np.random.seed(0)
+    np.random.seed(1)
     x, y, generating_rate = generate_fake_data(0, 20, 100)
 
     K = KernelSmoother(ncv=20, minh=.1, maxh=5)
     K.train(x, y)
 
     estimated_rate = K.predict(x)
-    std_err = K.se(x)
+    std_err = K.std_error(x)
 
     x.shape = (-1,)
 
@@ -34,13 +34,15 @@ def test_se():
     smoothed_targets = np.interp(x, x_, g)
 
     # import pylab as pl
-    # pl.fill_between(x, estimated_rate+3*std_err, estimated_rate-3*std_err, alpha=.5)
+    # pl.fill_between(x, estimated_rate+3*std_err,
+    #                 estimated_rate-3*std_err, alpha=.5)
     # pl.plot(x, smoothed_targets)
     # pl.show()
 
     print "This test is based on randomness. It may occasionally fail," \
         " but you should get suspicious if it fails twice in a row."
-    error_indicator = (abs(estimated_rate - smoothed_targets) > 3*std_err).astype('d')
+    error_indicator = (
+        abs(estimated_rate - smoothed_targets) > 3*std_err).astype('d')
     # We allow for one contiguous segment of error
     nsteps = np.sum(np.diff(error_indicator) > 0)
     assert nsteps < 2
@@ -51,6 +53,7 @@ def test_se():
 
 
 def test_smaller_bandwith_with_more_data():
+    np.random.seed(1)
     n = 100
 
     x, y, generating_rate = generate_fake_data(0, 20, n)

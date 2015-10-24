@@ -5,14 +5,17 @@ Smoothing
 This module contains frequentist smoothing methods
 """
 
+# current pylint rating: 7.21/10
+
 import numpy as np
 
 
 class KernelSmoother(object):
-    """Nadayama-Watson Kernel Regression using leave one out pseudo cross-validation"""
+    """Nadayama-Watson Kernel Regression using leave one out pseudo
+    cross-validation. Most of the notation is from Wassermann's books"""
 
     def __init__(self, minh=None, maxh=None, ncv=500, verbose=False):
-        """Estimate regession function r(x) ~ y using Nadayama-Watson Kernel Regression
+        """Regression of r(x) ~ y using Nadayama-Watson Kernel Regression
 
         Parameters:
             minh, float
@@ -24,12 +27,12 @@ class KernelSmoother(object):
             verbose, bool
                 see messages?
         """
-        self.x = None
+        self.X = None
         self.y = None
-        self.d = None
-        self.n = None
-        self.h = slice(minh, maxh, 1j*ncv)
-        self.R = np.zeros(ncv, 'd')
+        self._differences = None
+        self.npoints = None
+        self.bandwidths = slice(minh, maxh, 1j*ncv)
+        self.risks = np.zeros(ncv, 'd')
         self.i_opt = None
         self.h_opt = None
         self.verbose = verbose
@@ -44,35 +47,35 @@ class KernelSmoother(object):
                 array of target values
         """
         self.y = y
-        self.x = X.reshape((-1, 1))
-        self.x.shape = (-1, 1)
-        self.n = X.shape[0]
-        self.d = self.x-self.x.T
+        self.X = X.reshape((-1, 1))
+        self.X.shape = (-1, 1)
+        self.npoints = X.shape[0]
+        self._differences = self.X-self.X.T
 
         # Now perform cross validation
-        dd = self.d.ravel()
-        dd = dd[dd > 0]
-        if self.h.start is None:
-            self.h.start = np.min(dd)
-        if self.h.stop is None:
-            self.h.stop = 2*np.max(dd)
-        self.h = np.mgrid[self.h]
+        _flat_differences = self._differences.ravel()
+        _flat_differences = _flat_differences[_flat_differences > 0]
+        if self.bandwidths.start is None:
+            self.bandwidths.start = np.min(_flat_differences)
+        if self.bandwidths.stop is None:
+            self.bandwidths.stop = 2*np.max(_flat_differences)
+        self.bandwidths = np.mgrid[self.bandwidths]
 
         if self.verbose:
-            print "Starting cross validation (", len(self.R), "folds )"
-        for i in xrange(len(self.h)):
+            print "Starting cross validation (", len(self.risks), "folds )"
+        for i in xrange(len(self.bandwidths)):
             if self.verbose:
                 print "Fold", i
-            self.R[i] = self.CVrisk(self.h[i])
+            self.risks[i] = self._cv_risk(self.bandwidths[i])
         if self.verbose:
             print "Done"
 
-        self.i_opt = np.argmin(self.R)
-        self.h_opt = self.h[self.i_opt]
+        self.i_opt = np.argmin(self.risks)
+        self.h_opt = self.bandwidths[self.i_opt]
 
         return self
 
-    def CVrisk(self, h):
+    def _cv_risk(self, bandwidth):
         """Calculate the leave-one-out crossvalidated risk
 
         This function uses an explicit formula for the leave-one-out
@@ -82,21 +85,21 @@ class KernelSmoother(object):
             h, float
                 scalar bandwidth parameter
         """
-        L = self.d/h
+        L = self._differences/bandwidth
         L *= L
         L *= -.5
         np.exp(L, L)
         L /= L.sum(1).reshape((-1, 1))
-        r = np.dot(L, self.y)
-        R = np.sum(((self.y-r)/(1-np.diag(L)))**2)/self.n
-        if not R == R:  # Avoid NAN
+        predicted = np.dot(L, self.y)
+        residual = np.sum(((self.y-predicted)/(1-np.diag(L)))**2)/self.npoints
+        if not residual == residual:  # Avoid NAN
             return 1e10
-        return R
+        return residual
 
     def predict(self, X):
         """Evaluate the regression function at the values in X"""
         X.shape = (-1, 1)
-        L = self.x.T-X
+        L = self.X.T-X
         L /= self.h_opt
         L *= L
         L *= -.5
@@ -104,10 +107,10 @@ class KernelSmoother(object):
         L /= L.sum(1).reshape((-1, 1))
         return np.dot(L, self.y).ravel()
 
-    def se(self, X):
+    def std_error(self, X):
         """Determine asymptotic standard error"""
         # Get the norm
-        L = self.x.T - X
+        L = self.X.T - X
         L /= self.h_opt
         L *= L
         L *= -.5
@@ -117,28 +120,29 @@ class KernelSmoother(object):
         lnorm = L.sum(1)  # not sure about this index
 
         # Estimate sg
-        L = self.d/self.h_opt
+        L = self._differences/self.h_opt
         L *= L
         L *= -.5
         np.exp(L, L)
         L /= L.sum(1).reshape((-1, 1))
-        r = np.dot(L, self.y)
-        sg = np.sum((self.y-r)**2) / (len(self.y)-1)
+        residual = np.dot(L, self.y)
+        residual_sd = np.sum((self.y-residual)**2) / (len(self.y)-1)
 
-        return np.sqrt(sg*lnorm).ravel()
+        return np.sqrt(residual_sd*lnorm).ravel()
 
-    def bootstrap(self, x, n=200):
-        r = np.zeros((n, len(x)), 'd')
-        for i in xrange(n):
-            b = np.random.randint(self.n, size=self.n)
-            L = self.x[b].T - x
+    def bootstrap(self, X, nsamples=200):
+        """Use bootstrap to estimate standard error
+
+        This is (i) not tested and (ii) very slow.
+        """
+        residuals = np.zeros((nsamples, len(X)), 'd')
+        for i in xrange(nsamples):
+            idx = np.random.randint(self.npoints, size=self.npoints)
+            L = self.X[idx].T - X
             L /= self.h_opt
             L *= L
             L *= -.5
             np.exp(L, L)
             L /= L.sum(1).reshape((-1, 1))
-            r[i] = np.dot(L, self.y[b])
-        return r
-
-
-
+            residuals[i] = np.dot(L, self.y[idx])
+        return residuals
