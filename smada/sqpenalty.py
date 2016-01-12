@@ -44,7 +44,9 @@ class NaturalSplineBasis(object):
 
         :returns: array with shape (Nrecords,q+2)
         """
-        return np.c_[self.func.outer(predictor, self.knots), np.ones(predictor.shape, 'd'), predictor]
+        return np.concatenate((abs(predictor.reshape((-1, 1)) - self.knots.reshape((1, -1)))**3,
+                               np.ones(predictor.shape, 'd').reshape((-1, 1)),
+                               predictor.reshape((-1, 1))), 1)
 
     def penalty(self):
         """Create matrix representation of smoothness penalty for this basis"""
@@ -54,6 +56,18 @@ class NaturalSplineBasis(object):
         # # Weaker alternative: sum of squared derivative at knots, not integral
         for x in self.knots:
             S[:-2, :-2] += np.outer(np.abs(x-self.knots), np.abs(x-self.knots))
+
+        # # Other attempt using the integral
+        # l = np.min(self.knots)
+        # u = np.max(self.knots)
+        # S[:-2, :-2] += np.diag(((u-self.knots)**3 - (l-self.knots)**3)/3.)
+        # for i in xrange(self.q):
+        #     for j in xrange(i+1, self.q):
+        #         S[i, j] = 2*((u**3-l**3)/3. +
+        #                      self.knots[i]*self.knots[j]*(u-l) -
+        #                      (u*u-l*l)*0.5*(self.knots[i]+self.knots[j]))
+        #         S[j, i] = S[i, j]
+
         return S
 
     def constraints(self):
