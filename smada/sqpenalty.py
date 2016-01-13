@@ -345,7 +345,7 @@ def constraint_transformation(C):
     C_ = np.zeros((C.shape[1], C.shape[1]), 'd')
     C_[:C.shape[0], :] = C
     Q, R = np.linalg.qr(C_.T, 'full')
-    Z = Q.T[:, C.shape[0]:]
+    Z = Q[:, C.shape[0]:]
     return Z
 
 
