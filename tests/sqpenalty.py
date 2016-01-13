@@ -106,3 +106,30 @@ def test_constraints(basis):
 
     Z = sqp.constraint_transformation(constr)
     assert abs(np.dot(constr, Z)).max() < 1e-5
+
+
+def test_multiple_penalties(basis):
+    """For multiple penalties we want to make sure that the gcv for the final penalty is better than what we find
+    through a coarse grid search."""
+    np.random.seed(0)
+    x = np.random.rand(40, 2)
+    y = np.cos(4*x[:, 0]) + (x[:, 0]-.5)**2 - x[:, 1]**3 + 1./(1+x[:, 1]) + np.random.randn(40)*.2
+    y.shape = (-1, 1)
+
+    dmat, reg, constr = sqp.setup_additive(x, [basis, basis])
+
+    model = sqp.SquaredPenaltyModel(reg, constr)
+    model.fit(dmat, y)
+
+    QR = sqp.OnlineQR()
+    QR.update(dmat, y)
+    R, Qy, r2 = QR.get()
+    _, S_, R, Qy, r2 = sqp.apply_constraints(constr, R, Qy, reg, r2)
+    th0, th1 = np.logspace(-4, 4, 10), np.logspace(-4, 4, 10)
+    gcv = np.zeros((10, 10), 'd')
+    for i, t0 in enumerate(th0):
+        for j, t1 in enumerate(th1):
+            gcv[i, j] = sqp.gcv(np.log([t0, t1]), R, Qy, S_, 40, r2)
+
+    # Best value on grid should be worse than model score after optimization
+    assert np.min(gcv) > model.score
