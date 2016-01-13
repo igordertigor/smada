@@ -98,10 +98,9 @@ def test_function_approximation(basis):
     assert np.sqrt(np.trapz((y2-ytrue)**2, x2)) < np.sqrt(np.trapz((y1-ytrue)**2, x2))
 
 
-def test_constraints():
-    basis = sqp.NaturalSplineBasis(np.mgrid[0:1:20j])
+def test_constraints(basis):
+    """The constraint transformation should generate a matrix Z such that C*Z=0"""
     x = np.random.rand(100, 1)
-    y = np.cos(4*x) + (x-.5)**2 + np.random.randn(100, 1)*.2
 
     dmat, reg, constr = sqp.setup_additive(x, [basis])
 
