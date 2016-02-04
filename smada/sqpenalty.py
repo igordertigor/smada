@@ -337,6 +337,26 @@ class SquaredPenaltyModel(object):
         return np.dot(X, self.b)
 
 
+def estimate_lasso_em(R, Qy, lm, r2=0, n=None, niter=5, crit=1e-5):
+    """Use expectation maximization to estimate a linear model with LASSO penalty"""
+    sqlm = np.sqrt(lm)
+    B = sqlm*np.eye(R.shape[0])
+    b, _ = solve_penalized(R, Qy, B)
+    for i in range(niter):
+        precision = np.clip(1./abs(b), 0, 1e7)
+        B = np.diag(sqlm*np.sqrt(precision))
+        b_new, _ = solve_penalized(R, Qy, B)
+        b_new[precision >= 1e7] = 0
+        if np.sum((b-b_new)**2) < crit:
+            b = b_new
+            break
+        else:
+            b = b_new
+    else:
+        return b, False
+    return b, True
+
+
 def constraint_transformation(C):
     """Get the projection matrix Z such that XZa~y satisfies the constraints
 
