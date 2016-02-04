@@ -343,11 +343,11 @@ def estimate_lasso_em(R, Qy, lm, r2=0, n=None, niter=5, crit=1e-5):
     B = sqlm*np.eye(R.shape[0])
     b, _ = solve_penalized(R, Qy, B)
     for i in range(niter):
-        precision = np.clip(1./abs(b), 0, 1e7)
-        B = np.diag(sqlm*np.sqrt(precision))
+        precision = 1./np.clip(abs(b), 5e-3, np.inf)
+        B = np.diag(np.sqrt(precision)*sqlm)
         b_new, _ = solve_penalized(R, Qy, B)
-        b_new[precision >= 1e7] = 0
-        if np.sum((b-b_new)**2) < crit:
+        b_new[abs(b) < 5e-3] = 0
+        if max((b-b_new)**2) < crit:
             b = b_new
             break
         else:
