@@ -205,6 +205,27 @@ def setup_additive(predictors, bases):
     return dmat, reg, constr
 
 
+def expand_basis(predictors, bases):
+    """Only expand basis for additive model but don't introduce constraints
+
+    :param predictors: matrix with shape (Nrecords, Npredictors)
+    :param bases: list of Npredictors basis objects
+
+    :returns:
+        - dmat  design matrix
+    """
+    nrecords, npredictors = predictors.shape
+    assert len(bases) == npredictors
+
+    dmat = [np.ones((nrecords, 1), 'd')]
+
+    for i in xrange(npredictors):
+        X = bases[i].expand(predictors[:, i])
+        dmat.append(X)
+
+    return np.concatenate(dmat, 1)
+
+
 class OnlineQR(object):
     """Online updating version regression relevant QR parameters
 
