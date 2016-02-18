@@ -275,6 +275,96 @@ class OnlineQR(object):
         return R[:-1, :-1], R[:-1, -1], R[-1, -1]**2
 
 
+class WeightedQR(OnlineQR):
+    """Online updating version of regression relevant QR parameters
+
+    This works exactly as OnlineQR, but allows GLM-like reweighting
+    """
+
+    def __init__(self, family, b, compress=True):
+        """Weighted QR decomposition for IRLS
+
+        These are specified in a generalized linear model framework in which we typically have
+
+        .. math::
+            \eta=Xb, g(\mu) = \eta, \mu = E(Y)
+
+        and g is called the link function.
+
+        Args:
+            family (callable): function that takes the product eta and returns mu, dmu/deta, deta/dmu, var(Y).
+            compress (bool): re-compress after each call to update?
+        """
+        self._b = b
+        self._family = family
+        super(WeightedQR, self).__init__(compress)
+
+    def update(self, X, y):
+        eta = np.dot(X, self._b)
+        target, mu, dmudeta, detadmu, vary = self._family(eta, y)
+        z = eta + (target - mu)*detadmu
+        # Weights here are square roots of what the weights would be in regular glm contexts
+        weights = dmudeta/np.sqrt(vary)
+        super(WeightedQR, self).update(weights.reshape((-1, 1))*X, weights*z)
+
+
+def normal_identity_family(eta, y):
+    """GLM family variables for normal identity model
+
+    Args:
+        eta (array): the product Xb of a generalized linear model
+        y (array): the array of target values
+
+    Returns:
+        mu, dmu/deta, deta/dmu, var(Y)
+    """
+    return y, eta, 1., 1., 1.
+
+
+def binomial_logistic_family(eta, y):
+    """GLM family variables for binomial logistic regression model
+
+    Args:
+        eta (array): the product Xb of a generalized linear model
+        y (array|tuple): the target variable. If this is an array, it is assumed to be the vector of class labels (0-1
+            coding). If this is a tuple, it is assumed to consist of two arrays, one containing the observed fracton of
+            successes and one containing the number of observations.
+
+    Returns:
+        mu, dmu/deta, deta/dmu, var(Y)
+
+    Raises:
+        ValueError: if y is an invalid type
+    """
+    if isinstance(y, tuple):
+        y, n = y
+    elif isinstance(y, np.ndarray):
+        n = 1.
+        assert np.sum((np.sort(np.unique(y)) - [0, 1])**2) < 1e-7
+    else:
+        raise ValueError('unknown target format')
+    mu = 1./(1+np.exp(-eta))
+    dmudeta = mu*(1-mu)
+    vary = n * dmudeta
+    detadmu = 1./dmudeta
+    return y, mu, dmudeta, detadmu, vary
+
+
+def poisson_log_family(eta, y):
+    """GLM family variables for Poisson logistic regression model
+
+    Args:
+        eta (array): the product Xb of a generalized linear model
+        y (array): the target variable counts
+
+    Returns:
+        mu, dmu/deta, deta/dmu, var(Y)
+    """
+    mu = np.exp(eta)
+    detadmu = 1./mu
+    return y, mu, mu, detadmu, mu
+
+
 class SquaredPenaltyModel(object):
     """Linear model with square penalty on the parameters"""
 
