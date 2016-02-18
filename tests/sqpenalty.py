@@ -133,3 +133,79 @@ def test_multiple_penalties(basis):
 
     # Best value on grid should be worse than model score after optimization
     assert np.min(gcv) > model.score
+
+
+def test_glm_normal():
+    np.random.seed(0)
+    X = np.ones((200, 5), 'd')
+    X[:, 1:] = np.random.randn(200, 4)
+    w = np.random.randn(5)
+
+    y = np.dot(X, w) + np.random.randn(200)
+    qr = sqp.OnlineQR()
+    wqr = sqp.WeightedQR(sqp.normal_identity_family, np.ones(5, 'd'))
+
+    M = sqp.SquaredPenaltyModel([np.eye(5)])
+    wM = sqp.SquaredPenaltyModel([np.eye(5)])
+
+    qr.update(X, y)
+    M.fit(*qr.get())
+
+    wqr.update(X, y)
+    wM.fit(*wqr.get())
+
+    assert np.sum((M.b - wM.b)**2) < 1e-5
+
+
+@pytest.mark.parametrize(
+    'n', [1, np.array([10]*200)]
+)
+def test_binomial_logistic(n):
+    np.random.seed(0)
+    X = np.ones((200, 5), 'd')
+    X[:, 1:] = np.random.randn(200, 4)
+    w = np.random.randn(5)
+
+    eta = np.dot(X, w)
+    p = 1./(1+np.exp(-eta))
+    y = np.random.binomial(n, p)
+    B = np.zeros((5, 5), 'd')
+    b = np.zeros(5, 'd')
+    results = []
+
+    for s in [100, 200]:
+        for i in xrange(10):
+            qr = sqp.WeightedQR(sqp.binomial_logistic_family, b)
+            if isinstance(n, int) and n == 1:
+                qr.update(X[:s], y[:s])
+            else:
+                qr.update(X[:s], (y[:s].astype('d')/n[:s], n[:s]))
+            R, Qy, _ = qr.get()
+            b, _ = sqp.solve_penalized(R, Qy, B)
+        results.append(b)
+
+    assert np.linalg.norm(results[0] - w) > np.linalg.norm(results[1] - w)
+
+
+def test_poisson_log():
+    np.random.seed(1)
+    X = np.ones((200, 5), 'd')
+    X[:, 1:] = np.random.randn(200, 4)
+    w = np.random.randn(5)
+
+    eta = np.dot(X, w)
+    mu = np.exp(eta)
+    y = np.random.poisson(mu)
+    B = np.zeros((5, 5), 'd')
+    b = np.zeros(5, 'd')
+    results = []
+
+    for s in [100, 200]:
+        for i in xrange(50):
+            qr = sqp.WeightedQR(sqp.poisson_log_family, b)
+            qr.update(X[:s], y[:s])
+            R, Qy, _ = qr.get()
+            b, _ = sqp.solve_penalized(R, Qy, B)
+        results.append(b)
+
+    assert np.linalg.norm(results[0] - w) > np.linalg.norm(results[1] - w)
