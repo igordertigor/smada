@@ -304,7 +304,7 @@ class WeightedQR(OnlineQR):
         target, mu, dmudeta, detadmu, vary = self._family(eta, y)
         z = eta + (target - mu)*detadmu
         # Weights here are square roots of what the weights would be in regular glm contexts
-        weights = dmudeta/np.sqrt(vary)
+        weights = dmudeta/np.clip(np.sqrt(vary), 1e-7, np.inf)   # Clip to avoid nan
         super(WeightedQR, self).update(weights.reshape((-1, 1))*X, weights*z)
 
 
@@ -346,7 +346,7 @@ def binomial_logistic_family(eta, y):
     mu = 1./(1+np.exp(-eta))
     dmudeta = mu*(1-mu)
     vary = n * dmudeta
-    detadmu = 1./dmudeta
+    detadmu = 1./np.clip(dmudeta, 1e-7, np.inf)  # Clip to avoid nan
     return y, mu, dmudeta, detadmu, vary
 
 
