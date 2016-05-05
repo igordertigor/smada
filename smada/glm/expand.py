@@ -38,10 +38,31 @@ def bs_expand(x, knots, degree, map_func=map):
 
 
 def bs_penalty(knots, degree):
-    C = np.eye(len(knots))
-    C -= 2*np.eye(len(knots), k=1)
-    C += np.eye(len(knots), k=2)
+    K = len(knots) + degree - 1
+    C = np.eye(K)
+    C -= 2*np.eye(K, k=1)
+    C += np.eye(K, k=2)
     return C
+
+
+def block_diag(*matrices):
+    if matrices == ():
+        matrices = ([],)
+    matrices = [np.atleast_2d(m) for m in matrices]
+    bad_sizes = [k for k in range(len(matrices)) if matrices[k].ndim > 2]
+    if bad_sizes:
+        raise ValueError("Arguments in the following positions have dimensions"
+                         "greater than 2: {}".format(bad_sizes))
+
+    shapes = np.array([mat.shape for mat in matrices])
+    out = np.zeros(np.sum(shapes, axis=0), dtype=matrices[0].dtype)
+
+    r, c = 0, 0
+    for i, (rr, cc) in enumerate(shapes):
+        out[r:r+rr, c:c+cc] = matrices[i]
+        r += rr
+        c += cc
+    return out
 
 
 if __name__ == "__main__":
