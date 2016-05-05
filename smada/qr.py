@@ -176,6 +176,35 @@ def poisson_log_family(eta, y):
     return y, mu, mu, detadmu, mu
 
 
+def estimate_glm(data, link_family, niter=5, xtol=1e-7, map_func=map):
+    if isinstance(data, np.ndarray):
+        def data_iter():
+            return Xchunked(data, int(np.ceil(data.shape[0]/10)))
+    elif getattr(data, '__iter__', False):
+        def data_iter():
+            return data.copy()
+
+    # Initialize with linear model
+    R = mapreduce_qr(data_iter(), map_func=map_func)
+    w = np.linalg.solve(R[:-1, :-1], R[:-1, -1])
+
+    # IRLS
+    for i in range(niter):
+        R = mapreduce_qr(
+            weight_iterable(link_family, w, data_iter()),
+            map_func=map_func)
+        w_ = np.linalg.solve(R[:-1, :-1], R[:-1, -1])
+        change = np.sum((w_-w)**2)
+        w = w_
+        if change < 1e-7:
+            converged = True
+            break
+    else:
+        converged = False
+
+    return w, R[-1, -1], converged
+
+
 def example_linear():
     """Example parallel implementation of linear regression"""
     from multiprocessing import Pool
@@ -216,22 +245,13 @@ def example_logistic():
     print 'Logistic regression on 4 workers,', N, 'observations, 4 features'
     print 'True generating weights', w
     t0 = time.time()
-    w_ = np.zeros(4, 'd')
-    for i in xrange(5):
-        print 'Iteration', i
-        R = mapreduce_qr(
-            weight_iterable(binomial_logistic_family, w_, Xchunked(X, 5000)),
-            n=5000,
-            map_func=P.map)
-        wnew = np.linalg.solve(R[:-1, :-1], R[:-1, -1])
-        stepsize = np.sum((w_-wnew)**2)
-        w_ = wnew
-        print 'Estimated weights', w_
-        if stepsize < 1e-7:
-            print 'Converged'
-            break
-    else:
-        print 'No convergence'
+
+    w_est, r2, converged = estimate_glm(
+        X, binomial_logistic_family, 5, map_func=P.map)
+    print 'Estimated weights', w_est
+    print 'Final R2', r2
+    print 'Converged' if converged else 'Not converged'
+
     print 'Execution took', time.time() - t0, 's'
 
 
@@ -252,22 +272,12 @@ def example_poisson():
     print 'Poisson regression on 4 workers,', N, 'observations, 4 features'
     print 'True generating weights', w
     t0 = time.time()
-    w_ = np.zeros(4, 'd')
-    for i in xrange(5):
-        print 'Iteration', i
-        R = mapreduce_qr(
-            weight_iterable(poisson_log_family, w_, Xchunked(X, 5000)),
-            n=5000,
-            map_func=P.map)
-        wnew = np.linalg.solve(R[:-1, :-1], R[:-1, -1])
-        stepsize = np.sum((w_-wnew)**2)
-        w_ = wnew
-        print 'Estimated weights', w_
-        if stepsize < 1e-7:
-            print 'Converged'
-            break
-    else:
-        print 'No convergence'
+    w_est, r2, converged = estimate_glm(
+        X, poisson_log_family, 5, map_func=P.map)
+    print 'Estimated weights', w_est
+    print 'Final R2', r2
+    print 'Converged' if converged else 'Not converged'
+
     print 'Execution took', time.time() - t0, 's'
 
 
