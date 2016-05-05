@@ -1,3 +1,6 @@
+"""
+Simple example for a poisson GAM with a single smooth term
+"""
 import numpy as np
 import pylab as pl
 
@@ -17,6 +20,8 @@ def example_simple_additive():
     X = np.c_[np.ones(x.shape), x, expand.bs_expand(x, knots, 3)]
     B = expand.block_diag(np.eye(2), expand.bs_penalty(knots, 3))
 
+    # We don't yet have proper cross validation to estimate optimal smoothness.
+    # Just estimate 3 different smoothness levels
     w0, r, converged = glm.estimate_glm(
         np.c_[X, y], glm.poisson_log_family, .1*B)
     w1, r, converged = glm.estimate_glm(
