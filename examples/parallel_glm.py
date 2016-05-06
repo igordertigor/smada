@@ -5,7 +5,7 @@ import numpy as np
 
 from multiprocessing import Pool
 
-from smada.glm import glm, qr
+from smada.glm import glm, qr, utils
 
 
 def example_linear():
@@ -22,7 +22,7 @@ def example_linear():
 
     print 'Linear regression on 4 workers,', N, 'observations, 4 features'
     t0 = time.time()
-    R = qr.mapreduce_qr(qr.Xchunked(X, 5000), n=5000, map_func=P.map)
+    R = qr.mapreduce_qr(utils.Xchunked(X, 5000), n=5000, map_func=P.map)
     w_ = np.linalg.solve(R[:-1, :-1], R[:-1, -1])
     print "True regression weights", w
     print "Estimated regression weights", w_
