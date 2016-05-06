@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
-import functools
 import numpy as np
 
-from . import qr
+from . import qr, utils
 
 
 def estimate_glm(data, link_family, penalty=None, niter=5, xtol=1e-7, map_func=map):
@@ -28,13 +27,7 @@ def estimate_glm(data, link_family, penalty=None, niter=5, xtol=1e-7, map_func=m
             validation and model testing)
         converged: boolean flag to indicate if the iteration converged
     """
-    if isinstance(data, np.ndarray):
-        def data_iter():
-            return qr.Xchunked(data, int(np.ceil(data.shape[0]/10)))
-    elif getattr(data, '__iter__', False):
-        def data_iter():
-            return data.copy()
-
+    data_iter = utils.get_data_iter(data)
     if penalty is None:
         reduce_func = reduce
     else:
