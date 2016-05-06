@@ -67,23 +67,3 @@ def mapreduce_qr(X_chunks, n=None, map_func=map, reduce_func=reduce):
     """
     return reduce_func(lambda x, y: qr_reduce(x, y, n),
                        map_func(qr_mapped, X_chunks))
-
-
-def Xchunked(X, blocksize):
-    """Utility function that chunks up a large design matrix
-
-    Note that this may not always be the ideal way to go, as "real" iterators
-    might also allow loading chunks of data from external sources, such as data
-    bases.
-
-    Args:
-        X: full design matrix
-        blocksize: number of rows for each matrix chunk
-
-    Yields:
-        blocksize rows from the full matrix X
-    """
-    i = -blocksize
-    while i < X.shape[0]-blocksize:
-        i += blocksize
-        yield X[i:i+blocksize]
