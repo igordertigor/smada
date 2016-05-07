@@ -33,11 +33,12 @@ def example_simple_additive():
     w2, r, converged = glm.estimate_glm(
         np.c_[X, y], glm.poisson_log_family, B)
 
+    getR = functools.partial(gcv.getR_linear, R=np.c_[X, y])
     th = np.exp(gcv.soptimize(
         np.ones(2, 'd'),
         functools.partial(gcv.gcv_as_error,
                           penalties=[np.eye(2), B_],
-                          getR=functools.partial(gcv.getR_linear, R=np.c_[X, y]),
+                          getR=getR,
                           nobservations=len(x))
     ))
 
