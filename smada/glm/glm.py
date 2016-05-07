@@ -54,7 +54,7 @@ def estimate_glm(data, link_family, penalty=None, niter=5, xtol=1e-7, map_func=m
     else:
         converged = False
 
-    return w, R[-1, -1], converged
+    return w, R[-1, -1]**2, converged
 
 
 def normal_identity_family(eta, y):
