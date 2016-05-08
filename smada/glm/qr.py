@@ -67,3 +67,14 @@ def mapreduce_qr(X_chunks, n=None, map_func=map, reduce_func=reduce):
     """
     return reduce_func(lambda x, y: qr_reduce(x, y, n),
                        map_func(qr_mapped, X_chunks))
+
+
+def mapreduce_svd(X_chunks, n=None, map_func=map, reduce_func=reduce):
+    R = np.concatenate(map_func(qr_mapped, X_chunks), 0)
+    return np.linalg.svd(R)
+
+
+def lm_solve_qr(data_iter, map_func, reduce_func):
+    R = mapreduce_qr(data_iter, map_func=map_func, reduce_func=reduce_func)
+    w = np.linalg.solve(R[:-1, :-1], R[:-1, -1])
+    return w, R[-1, -1]**2

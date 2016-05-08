@@ -13,8 +13,8 @@ def estimate_glm(data, link_family, penalty=None, niter=5, xtol=1e-7, map_func=m
         link_family: a function that combines link function and exponential
             family. See `normal_identity_family`, `binomial_logistic_family`,
             and `poisson_log_family` for examples.
-        penalty: if this is a matrix Q, there is an additional penalty w.TQ.TQw on
-            the estimation
+        penalty: if this is a matrix Q, there is an additional penalty w.TQ.TQw
+            on the estimation
         niter: number of reweighted least squares iterations
         xtol: final desired stepsize
         map_func: potential drop in replacement for `map`. This allows to drop
@@ -40,12 +40,10 @@ def estimate_glm(data, link_family, penalty=None, niter=5, xtol=1e-7, map_func=m
 
     # IRLS
     for i in range(niter):
-        R = qr.mapreduce_qr(
+        w_, r2 = qr.lm_solve_qr(
             weight_iterable(link_family, w, data_iter()),
             map_func=map_func,
-            reduce_func=reduce_func
-        )
-        w_ = np.linalg.solve(R[:-1, :-1], R[:-1, -1])
+            reduce_func=reduce_func)
         change = np.sum((w_-w)**2)
         w = w_
         if change < 1e-7:
@@ -54,7 +52,7 @@ def estimate_glm(data, link_family, penalty=None, niter=5, xtol=1e-7, map_func=m
     else:
         converged = False
 
-    return w, R[-1, -1]**2, converged
+    return w, r2, converged
 
 
 def normal_identity_family(eta, y):
