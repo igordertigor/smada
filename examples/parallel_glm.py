@@ -74,7 +74,7 @@ def example_poisson():
     print 'True generating weights', w
     t0 = time.time()
     w_est, r2, converged = glm.estimate_glm(
-        X, glm.poisson_log_family, 5, map_func=P.map)
+        X, glm.poisson_log_family, niter=5, map_func=P.map)
     print 'Estimated weights', w_est
     print 'Final R2', r2
     print 'Converged' if converged else 'Not converged'
@@ -84,9 +84,9 @@ def example_poisson():
 
 if __name__ == '__main__':
     print "="*40
-    # example_linear()
+    example_linear()
     print "="*40
     example_logistic()
     print "="*40
-    # example_poisson()
+    example_poisson()
     print "="*40
