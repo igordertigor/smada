@@ -1,3 +1,4 @@
+import itertools
 import numpy as np
 
 
@@ -24,7 +25,14 @@ def Xchunked(X, blocksize):
 def get_data_iter(data):
     if isinstance(data, np.ndarray):
         def data_iter():
-            return Xchunked(data, int(np.ceil(data.shape[0]/10)))
+            return Xchunked(data, int(np.ceil(data.shape[0]/100)))
+    elif isinstance(data, tuple):
+        data, counts = data
+        chunk_size = int(np.ceil(data.shape[0]/100))
+
+        def data_iter():
+            return itertools.izip(Xchunked(data, chunk_size),
+                                  Xchunked(counts, chunk_size))
     elif getattr(data, '__iter__', False):
         def data_iter():
             return data.copy()

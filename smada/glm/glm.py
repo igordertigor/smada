@@ -35,8 +35,12 @@ def estimate_glm(data, link_family, penalty=None, niter=5, xtol=1e-7, map_func=m
             return reduce(f, seq, np.c_[penalty, np.zeros(penalty.shape[0], 'd')])
 
     # Initialize with linear model
-    R = qr.mapreduce_qr(data_iter(), map_func=map_func, reduce_func=reduce_func)
-    w = np.linalg.solve(R[:-1, :-1], R[:-1, -1])
+    first_chunk = data_iter().next()
+    if isinstance(first_chunk, tuple):
+        w = np.zeros(first_chunk[0].shape[1]-1, 'd')
+    else:
+        R = qr.mapreduce_qr(data_iter(), map_func=map_func, reduce_func=reduce_func)
+        w = np.linalg.solve(R[:-1, :-1], R[:-1, -1])
 
     # IRLS
     for i in range(niter):
@@ -131,7 +135,9 @@ def weight_iterable(family, beta, iterable):
     for X in iterable:
         if isinstance(X, tuple):
             # This allows for multi-observation binomial targets
-            X, target = X
+            X, counts = X
+            target = (X[:, -1].ravel(), counts.ravel())
+            X = X[:, :-1]
         else:
             X, target = X[:, :-1], X[:, -1]
         eta = np.dot(X, beta)
