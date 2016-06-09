@@ -82,6 +82,35 @@ def example_poisson():
     print 'Execution took', time.time() - t0, 's'
 
 
+def example_logistic_counts():
+    """Example parallel implementation of logistic regression with binary
+    response variable"""
+    P = Pool(4)
+
+    N = 5000000  # many observations
+
+    # Simulate data
+    w = [.2, .1, -.1, .3]
+    X = np.ones((N, 5), 'd')
+    X[:, 1:4] = np.random.randn(X.shape[0], 3)
+    X[:, 4] = 1./(1+np.exp(-np.dot(X[:, :-1], w)))
+    X[:, 4] = np.random.rand(N) < X[:, 4]
+    counts = np.random.poisson(10, size=(N,))
+
+    print 'Logistic regression on counts on 4 workers,', N, 'observations, 4 features'
+    print 'True generating weights', w
+    t0 = time.time()
+
+    w_est, r2, converged = glm.estimate_glm(
+        (X, counts), glm.binomial_logistic_family,  # penalty=np.eye(4),
+        niter=5, map_func=P.map)
+    print 'Estimated weights', w_est
+    print 'Final R2', r2
+    print 'Converged' if converged else 'Not converged'
+
+    print 'Execution took', time.time() - t0, 's'
+
+
 if __name__ == '__main__':
     print "="*40
     example_linear()
@@ -89,4 +118,6 @@ if __name__ == '__main__':
     example_logistic()
     print "="*40
     example_poisson()
+    print "="*40
+    example_logistic_counts()
     print "="*40
