@@ -22,20 +22,20 @@ def Xchunked(X, blocksize):
         yield X[i:i+blocksize]
 
 
-def get_data_iter(data):
+def get_data_iter(data, nchunks=100):
     if isinstance(data, np.ndarray):
         def data_iter():
-            return Xchunked(data, int(np.ceil(data.shape[0]/100)))
+            return Xchunked(data, int(np.ceil(data.shape[0]/nchunks)))
     elif isinstance(data, tuple):
         data, counts = data
-        chunk_size = int(np.ceil(data.shape[0]/100))
+        chunk_size = int(np.ceil(data.shape[0]/nchunks))
 
         def data_iter():
             return itertools.izip(Xchunked(data, chunk_size),
                                   Xchunked(counts, chunk_size))
     elif getattr(data, '__iter__', False):
         def data_iter():
-            return data.copy()
+            return itertools.tee(data)[1]
     else:
         raise ValueError('Unknown input type {}'.format(type(data)))
     return data_iter

@@ -5,7 +5,7 @@ import numpy as np
 from . import qr, utils
 
 
-def estimate_glm(data, link_family, penalty=None, niter=5, xtol=1e-7, map_func=map):
+def estimate_glm(data, link_family, penalty=None, niter=5, xtol=1e-7, map_func=map, nchunks=100):
     """Use IRLS to estimate parameters of a generalized linear model
 
     Args:
@@ -27,7 +27,7 @@ def estimate_glm(data, link_family, penalty=None, niter=5, xtol=1e-7, map_func=m
             validation and model testing)
         converged: boolean flag to indicate if the iteration converged
     """
-    data_iter = utils.get_data_iter(data)
+    data_iter = utils.get_data_iter(data, nchunks)
     if penalty is None:
         reduce_func = reduce
     else:
